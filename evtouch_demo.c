@@ -252,13 +252,15 @@ void do_touch_zoom_inout(int uinput_fd, int type)
 {
 	int id = 0;
 	
-    int x0 = 600, y0 = 600, x1 = 1200, y1 = 600; // original position
+    int x0 = 0x2471, y0 = 0x4165, x1 = 0x3a21, y1 = 0x3cb2; // original position
 
     // to wait or not
     usleep(20*1000);
     id += 1;
     uinput_write_event(uinput_fd, EV_ABS, ABS_MT_SLOT, 0);
     uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TRACKING_ID, id);
+	uinput_write_event(uinput_fd, EV_KEY, BTN_TOUCH, 1);
+	uinput_write_event(uinput_fd, EV_KEY, BTN_TOOL_FINGER, 1);
     uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TOUCH_MAJOR, 4);
     uinput_write_event(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 80);
     uinput_write_event(uinput_fd, EV_ABS, ABS_MT_POSITION_X, x0 );
@@ -280,11 +282,11 @@ void do_touch_zoom_inout(int uinput_fd, int type)
 	{
         if (type == 0)
 		{ // zoom in 
-            x0 -= 3;
-            x1 += 3;
+            x0 -= 10;
+            x1 += 10;
         }else { // zoom out
-            x0 += 3;
-            x1 -= 3;
+            x0 += 10;
+            x1 -= 10;
         }
 
 		// update position of two points
@@ -301,19 +303,18 @@ void do_touch_zoom_inout(int uinput_fd, int type)
     }
 
     //two finger leave from screen
-    usleep(10*1000);
-    uinput_write_event(uinput_fd, EV_ABS, ABS_MT_SLOT, 1);
-    uinput_write_event(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 0);// no preessure
-    uinput_write_event(uinput_fd, EV_ABS, ABS_MT_POSITION_X, x1 );
-    uinput_write_event(uinput_fd, EV_SYN, SYN_REPORT, 0);
-    uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TRACKING_ID, -1);//-1 mean finfer up
-    uinput_write_event(uinput_fd, EV_SYN, SYN_REPORT, 0);
-    usleep(10*1000);
+   // usleep(10*1000);
     uinput_write_event(uinput_fd, EV_ABS, ABS_MT_SLOT, 0);
-    uinput_write_event(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 0);
-    uinput_write_event(uinput_fd, EV_ABS, ABS_MT_POSITION_X, x0 );
-    uinput_write_event(uinput_fd, EV_SYN, SYN_REPORT, 0);
-    uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TRACKING_ID, -1);
+    //uinput_write_event(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 0);
+	uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TRACKING_ID, -1);//-1 mean finfer up
+	 
+	//usleep(10*1000);
+	uinput_write_event(uinput_fd, EV_ABS, ABS_MT_SLOT, 1);
+	//uinput_write_event(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 0);// no preessure
+	uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TRACKING_ID, -1);//-1 mean finfer up
+
+	uinput_write_event(uinput_fd, EV_KEY, BTN_TOUCH, 0);
+	uinput_write_event(uinput_fd, EV_KEY, BTN_TOOL_FINGER, 0);
     uinput_write_event(uinput_fd, EV_SYN, SYN_REPORT, 0);
 }
 
@@ -341,7 +342,16 @@ void touch_zoom_test_case(int uinput_fd)
 
 
 
-
+/**
+  * @brief   To emualate multi touch event from  touch data
+  * @param  uinput_fd[in]:  file descriptor of opened uinput device.
+  * @param  ts[in]:  touch points data from json
+  * @param  ts_num[in]: touch points number.
+  *          This parameter can be one of the following values:
+  *            @arg sample
+  * @return None
+  * @note   None
+  */
 static int trackid = 1;
 void do_client_touch(int uinput_fd, vdagentd_touchdata *ts, int ts_num)
 { 
@@ -427,8 +437,11 @@ void client_json_touch_test_case(int uinput_fd)
 {
 	char kbd_buf[32];
 	int cout = 0;
+	int i;
 	
-	// prepare data
+	/**
+	  * for single points down and up              
+	  */
 	vdagentd_touchdata single_points_down_data = {
 			.id = 0, 
 		    .pressure  = 10, 
@@ -446,33 +459,45 @@ void client_json_touch_test_case(int uinput_fd)
 		    .y = 0x7cff,
 			.touch_major = 3,
 		    .touch_minor = 3,
-
 	};
-	vdagentd_touchdata single_points_move_data[10] = {
-		[0] = {
+
+	/**
+	  * for muti points down and up              
+	  */
+
+	/**
+	  * for single points  move              
+	  */
+	// start points,  
+	vdagentd_touchdata single_point_move_start = {
 			.id = 0, 
 		    .pressure  = 10, 
-			.type = TYPE_UP,  
-		    .x = 0x272,
-		    .y = 0x642,
+			.type = TYPE_DOWN,  
+		    .x = 0x3aaa,
+		    .y = 0x299,
 			.touch_major = 3,
 		    .touch_minor = 3,
-		},
+	};
+	// y axis plus 60 every time
+	vdagentd_touchdata single_point_move = {
+			.id = 0, 
+		    .pressure  = 10, 
+			.type = TYPE_MOVE,  
+		    .x = 0x3aaa,
+		    .y = 0x2e6,
+			.touch_major = 3,
+		    .touch_minor = 3,
+	};
+	vdagentd_touchdata single_point_move_end = {
+			.id = 0, 
+		    .pressure  = 10, 
+			.type = TYPE_UP, // important
+		    .x = 0x111,  // ignore
+		    .y = 0x111,
+			.touch_major = 3,
+		    .touch_minor = 3,
 	};
 	
-	vdagentd_touchdata three_points_updown_data[3] = {
-
-
-	};
-
-	vdagentd_touchdata single_points_line_data[3] = {
-	
-	
-	};
-	vdagentd_touchdata three_points_line_data[3] = {
-
-	};
-
 	
 	
 	printf("input 1(single)/2(mutil) down/up:");
@@ -490,6 +515,7 @@ void client_json_touch_test_case(int uinput_fd)
 				do_client_touch(uinput_fd, &single_points_down_data,  1);
 				do_client_touch(uinput_fd, &single_points_up_data,  1);
 			}else{
+				// home desktop
 				single_points_down_data.x = 0x3f76;
 				single_points_down_data.y = 0x7ae5;
 				do_client_touch(uinput_fd, &single_points_down_data,  1);
@@ -498,7 +524,13 @@ void client_json_touch_test_case(int uinput_fd)
 			
 		}else if(strncmp(kbd_buf, "2", 1) == 0)
 		{ 
-			do_touch_zoom_inout(uinput_fd, 1);  //Àı–°
+			do_client_touch(uinput_fd, &single_point_move_start,  1);
+			for(i=0; i<3; i++)
+			{
+				do_client_touch(uinput_fd, &single_point_move,  1);
+				single_point_move.y += 20;
+			}
+			do_client_touch(uinput_fd, &single_point_move_end,  1);
 			
 		}else{
 			printf("unsupport operation\n");
