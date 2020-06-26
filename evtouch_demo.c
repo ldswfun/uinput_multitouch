@@ -102,30 +102,46 @@ int create_touch_uinput(int uinput_fd)
 	
 	uinput_dev.id.version = 4;
 	uinput_dev.id.bustype = BUS_VIRTUAL;
+
+
+	// getevent -v32  /dev/eventX
+	uinput_dev.absmin[ABS_X] = 0;
+	uinput_dev.absmax[ABS_X] = 32767; 
+	uinput_dev.absmin[ABS_Y] = 0;
+	uinput_dev.absmax[ABS_Y] = 32767;
+	uinput_dev.absmin[ABS_Z] = 0;
+	uinput_dev.absmax[ABS_Z] = 1;
 	
 	uinput_dev.absmin[ABS_MT_SLOT] = 0;
 	uinput_dev.absmax[ABS_MT_SLOT] = 9; // MT代表multi touch 多指触摸 最大手指的数量我们设置9
 	uinput_dev.absmin[ABS_MT_TOUCH_MAJOR] = 0;
 	uinput_dev.absmax[ABS_MT_TOUCH_MAJOR] = 15;
 	uinput_dev.absmin[ABS_MT_POSITION_X] = 0; // 屏幕最小的X尺寸
-	uinput_dev.absmax[ABS_MT_POSITION_X] = TS_MAX_WIDTH; // 屏幕最大的X尺寸
+	uinput_dev.absmax[ABS_MT_POSITION_X] = 32767; //TS_MAX_WIDTH; // 屏幕最大的X尺寸
 	uinput_dev.absmin[ABS_MT_POSITION_Y] = 0; // 屏幕最小的Y尺寸
-	uinput_dev.absmax[ABS_MT_POSITION_Y] = TS_MAX_HEIGHT; //屏幕最大的Y尺寸
+	uinput_dev.absmax[ABS_MT_POSITION_Y] = 32767; //TS_MAX_HEIGHT; //屏幕最大的Y尺寸
 	uinput_dev.absmin[ABS_MT_TRACKING_ID] = 0;
 	uinput_dev.absmax[ABS_MT_TRACKING_ID] = 65535;//按键码ID累计叠加最大值
 	uinput_dev.absmin[ABS_MT_PRESSURE] = 0;   
-	uinput_dev.absmax[ABS_MT_PRESSURE] = 255;     //屏幕按下的压力值
+	uinput_dev.absmax[ABS_MT_PRESSURE] = 256;     //屏幕按下的压力值
 
 	// Setup the uinput device
 	ioctl(uinput_fd, UI_SET_EVBIT, EV_KEY);   //该设备支持按键
 	ioctl(uinput_fd, UI_SET_EVBIT, EV_REL);   //支持鼠标
 	ioctl(uinput_fd, UI_SET_EVBIT, EV_SYN); //支持同步，用于report
 	// for key
-	//ioctl(uinput_fd, UI_SET_KEYBIT, BTN_TOUCH);
-	//ioctl(uinput_fd, UI_SET_KEYBIT, BTN_TOOL_FINGER);
+	ioctl(uinput_fd, UI_SET_KEYBIT, KEY_VOLUMEDOWN);
+	ioctl(uinput_fd, UI_SET_KEYBIT, KEY_VOLUMEUP);
+	ioctl(uinput_fd, UI_SET_KEYBIT, KEY_POWER);
+	ioctl(uinput_fd, UI_SET_KEYBIT, KEY_BACK);
 
 	// Touch
 	ioctl (uinput_fd, UI_SET_EVBIT,  EV_ABS); //支持触摸
+	ioctl (uinput_fd, UI_SET_ABSBIT,  ABS_X); 
+	ioctl (uinput_fd, UI_SET_ABSBIT,  ABS_Y); 
+	ioctl (uinput_fd, UI_SET_ABSBIT,  ABS_Z); 
+	//ioctl (uinput_fd, UI_SET_ABSBIT,  ABS_PRESSURE);
+	
 	ioctl (uinput_fd, UI_SET_ABSBIT, ABS_MT_SLOT);
 	ioctl (uinput_fd, UI_SET_ABSBIT, ABS_MT_TOUCH_MAJOR);
 	ioctl (uinput_fd, UI_SET_ABSBIT, ABS_MT_POSITION_X);
@@ -356,9 +372,15 @@ void do_client_touch(int uinput_fd, vdagentd_touchdata *ts, int ts_num)
 				uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TRACKING_ID, trackid++);
 				if(i < 1)//  first down event sequence
 				{
-					uinput_write_event(uinput_fd, EV_KEY, BTN_TOUCH,  1);// fist event
-					uinput_write_event(uinput_fd, EV_KEY, BTN_TOOL_FINGER,	1);
-					//uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TOUCH_MAJOR, ts->touch_major+3); // fake
+					if(ts_num > 1)
+					{
+						uinput_write_event(uinput_fd, EV_KEY, BTN_TOUCH,  1);// fist event
+						uinput_write_event(uinput_fd, EV_KEY, BTN_TOOL_FINGER,	1);
+					}
+
+					uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TOUCH_MAJOR, ts->touch_major+0xaf); // fake
+					uinput_write_event(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 0x81);
+					
 					//uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TOUCH_MINOR, ts->touch_minor+2 ); // fake	
 				}
 				
@@ -380,13 +402,17 @@ void do_client_touch(int uinput_fd, vdagentd_touchdata *ts, int ts_num)
 			case TYPE_UP:
 				if(ts_num > 1)// muti touch
 					uinput_write_event(uinput_fd, EV_ABS, ABS_MT_SLOT, ts->id);
-				
+
+				uinput_write_event(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 0);
 				uinput_write_event(uinput_fd, EV_ABS, ABS_MT_TRACKING_ID, -1);
 				
 				if(i == (ts_num-1))// last event
 				{	
-					uinput_write_event(uinput_fd, EV_KEY, BTN_TOUCH,  0);
-					uinput_write_event(uinput_fd, EV_KEY, BTN_TOOL_FINGER,	0);
+					if(ts_num > 1)
+					{
+						uinput_write_event(uinput_fd, EV_KEY, BTN_TOUCH,  0);
+						uinput_write_event(uinput_fd, EV_KEY, BTN_TOOL_FINGER,	0);
+					}
 					// sync
 					uinput_write_event(uinput_fd, EV_SYN, SYN_REPORT, 0);
 				}
@@ -400,30 +426,27 @@ void do_client_touch(int uinput_fd, vdagentd_touchdata *ts, int ts_num)
 void client_json_touch_test_case(int uinput_fd)
 {
 	char kbd_buf[32];
-
+	int cout = 0;
 	
 	// prepare data
-	vdagentd_touchdata single_points_down_data[1] = {
-		[0] = {
+	vdagentd_touchdata single_points_down_data = {
 			.id = 0, 
 		    .pressure  = 10, 
 			.type = TYPE_DOWN,   
-		    .x = 0x272,
-		    .y = 0x642,
+		    .x = 0x413e,   // home x, y
+		    .y = 0x7cff,
 			.touch_major = 3,
 		    .touch_minor = 3,
-		},
 	};
-	vdagentd_touchdata single_points_up_data[1] = {
-		[0] = {
+	vdagentd_touchdata single_points_up_data = {
 			.id = 0, 
 		    .pressure  = 10, 
 			.type = TYPE_UP,  
-		    .x = 0x272,
-		    .y = 0x642,
+		    .x = 0x413e,
+		    .y = 0x7cff,
 			.touch_major = 3,
 		    .touch_minor = 3,
-		},
+
 	};
 	vdagentd_touchdata single_points_move_data[10] = {
 		[0] = {
@@ -452,15 +475,26 @@ void client_json_touch_test_case(int uinput_fd)
 
 	
 	
-	printf("input 1(single)/2(mutil) up/down:");
+	printf("input 1(single)/2(mutil) down/up:");
 
 	while(1)
 	{
 		fgets(kbd_buf, 32, stdin);
 		if(strncmp(kbd_buf, "1", 1) == 0)
-		{
-			do_client_touch(uinput_fd, single_points_down_data,  1);
-			do_client_touch(uinput_fd, single_points_up_data,  1);
+		{	
+			if((cout++)%2 == 0)
+			{	
+				// show all app
+				single_points_down_data.x = 0x3d82;  
+				single_points_down_data.y = 0x6de5;
+				do_client_touch(uinput_fd, &single_points_down_data,  1);
+				do_client_touch(uinput_fd, &single_points_up_data,  1);
+			}else{
+				single_points_down_data.x = 0x3f76;
+				single_points_down_data.y = 0x7ae5;
+				do_client_touch(uinput_fd, &single_points_down_data,  1);
+				do_client_touch(uinput_fd, &single_points_up_data,  1);
+			}
 			
 		}else if(strncmp(kbd_buf, "2", 1) == 0)
 		{ 
@@ -495,8 +529,8 @@ int main(int argc, char *argv[])
 		return -1;//error process.
 	}
 
-	//client_json_touch_test_case(uinput_fd);
-	touch_zoom_test_case(uinput_fd);
+	client_json_touch_test_case(uinput_fd);
+	//touch_zoom_test_case(uinput_fd);
 
 	close(uinput_fd);
 	return 0;
